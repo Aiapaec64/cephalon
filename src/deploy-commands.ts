@@ -1,12 +1,12 @@
 import { DiscordAPIError, REST, Routes } from 'discord.js';
 import { commands } from './commands/index.js';
-import { loadEnvironment } from './config/env.js';
+import { loadDiscordEnvironment } from './config/env.js';
 import { logError } from './utils/logError.js';
 
 async function main(): Promise<void> {
   let env;
   try {
-    env = loadEnvironment();
+    env = loadDiscordEnvironment();
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Invalid environment configuration.');
     process.exitCode = 1;

@@ -12,14 +12,29 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "deploy:commands": "tsx src/deploy-commands.ts"
+    "deploy:commands": "tsx src/deploy-commands.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:migrate:prod": "node dist/db/migrate.js",
+    "test": "tsc -p tsconfig.test.json && tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "discord.js": "^14.27.0",
-    "dotenv": "^18.0.5"
+    "dotenv": "^18.0.5",
+    "drizzle-orm": "^0.45.3",
+    "luxon": "^3.7.2",
+    "pg": "^8.23.1"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    }
   },
   "devDependencies": {
+    "@types/luxon": "^3.7.6",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
