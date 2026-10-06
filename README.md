@@ -53,17 +53,21 @@ never registers commands. For production:
 
 ```sh
 npm run build
-npm run db:migrate:prod
 npm start
 ```
 
 If PowerShell blocks `npm.ps1`, use `npm.cmd` instead of `npm`.
 
+`npm start` runs `node dist/db/migrate.js && node dist/index.js`: migrations
+finish before the bot starts. Each restart applies only pending migrations;
+if migration fails, startup exits unsuccessfully and the bot does not start.
+Generated SQL migrations and metadata must be included in the repository.
+Startup never runs `drizzle-kit generate`.
+
 ## Docker / Coolify
 
 ```sh
 docker build -t cephalon .
-docker run --rm --env-file .env cephalon node dist/db/migrate.js
 docker run -d --name cephalon --restart unless-stopped --env-file .env cephalon
 docker logs -f cephalon
 ```
@@ -75,13 +79,14 @@ Environment files are excluded. No inbound bot ports are needed.
 In Coolify, manually provision a PostgreSQL resource with persistent storage and
 backups. Connect it to the bot's private network and add `DATABASE_URL` using the
 database's internal host and credentials. Keep the existing three Discord
-variables. Use the Dockerfile and run `node dist/db/migrate.js` as a pre-start
-release step in the built image, before `node dist/index.js`. Alternatively run
-that migration command once in a one-off container using the new image and the
-same environment/network. Do not start the bot on an unmigrated database.
+variables. Use the Dockerfile's default `npm start` command, which applies
+migrations inside the container before starting the bot. Remove the Coolify
+pre-deployment command `npm run db:migrate:prod`; startup no longer depends on
+`docker exec` into an already-running application container. Remove any custom
+start-command override that launches `node dist/index.js` directly.
 
 Register slash commands separately with `npm run deploy:commands` locally.
-The bot and container start never redeploy commands or automatically migrate.
+Container startup applies migrations but never redeploys slash commands.
 Configure a restart policy and allow roughly 30 seconds for graceful shutdown.
 One bot replica is recommended; database locks also protect overlapping replicas
 during redeploys. PostgreSQL must support session advisory locks: use a direct

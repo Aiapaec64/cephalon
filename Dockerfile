@@ -14,4 +14,4 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node migrations ./migrations
 USER node
-CMD ["node", "dist/index.js"]
+CMD ["npm", "start"]
