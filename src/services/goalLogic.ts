@@ -1,7 +1,7 @@
 import { DateTime, IANAZone } from 'luxon';
 
 export const DEFAULT_TIMEZONE = 'Europe/Brussels';
-export const RECAP_PAGE_SIZE = 7;
+export const RECAP_PAGE_SIZE = 6;
 
 export class GoalInputError extends Error {}
 

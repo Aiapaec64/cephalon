@@ -123,21 +123,36 @@ even for stopped/finished goals; it does not allow future dates. Backfilling tod
 before its reminder is sent suppresses that day's reminder.
 
 `list` shows your active goals as creator or target. `show` and recap display
-every goal date with seven days per page, opening on today's page (or the nearest
-boundary page before/after the goal). French Previous/Next and Today buttons
+every goal date with six days per page, opening on today's page (or the nearest
+boundary page before/after the goal). Précédent/Suivant/Aujourd’hui buttons
 navigate without changing the public reminder. Dates use French formatting:
-✅ Fait, ❌ Non, ⚪ Sans réponse, ⏳ Aujourd’hui, ⬜ À venir.
+✓ Fait, × Non, — Sans réponse, · Aujourd’hui, and À venir without a symbol.
 Success rate is completed / (completed + no): only explicit answers count.
 Unanswered, pending, and future dates are excluded. A zero denominator shows 0%.
-Remaining counts today pending and future dates. The short progress bar shows
-completed / total goal days, separately from success rate.
+Remaining counts today pending and future dates. Progress is numeric: completed /
+total goal days, separately from success rate. No decorative progress bar is used.
 
-Creation returns a compact ephemeral confirmation with a recap button. Daily
-reminders ping the target outside an embed showing the title, day number, and
-French date. Answering edits that same reminder with an encouraging result and
-updated completion count, disables Yes/No, and keeps recap available. No extra
-success acknowledgement remains after the reminder is updated; if editing fails,
-an ephemeral confirmation explains that the answer was saved.
+Creation returns a compact ephemeral confirmation with labelled fields and a
+recap button. Daily reminders ping the target outside an embed showing the title,
+day number, and French date. Views share a muted slate accent, subdued green for
+completed days, and muted red for non-completed days. Button labels have no emoji.
+Answering edits that same reminder with a calm result and updated completion count,
+disables Yes/No, and keeps recap available. Completed results also show the consecutive
+yes streak calculated from stored check-ins, without adding database columns.
+Today's pending response does not break yesterday's streak; no or a missing past
+day breaks it. No extra success acknowledgement remains after the reminder is
+updated; if editing fails, an ephemeral confirmation explains that the answer was saved.
+
+For unanswered past days, creation and recap offer **Compléter l’historique**.
+Only the creator or an administrator can use it, matching `set-day` permissions.
+The ephemeral view presents one missing past date at a time with Oui/Non/Passer.
+Yes/No saves the result and advances by editing the same message. Already answered
+dates cannot be overwritten by this workflow, including concurrent clicks; use
+`set-day` explicitly for corrections. Passer does not change the database and
+leaves that day available when reopening history. Today and future dates are never
+included. The completion screen distinguishes fully answered history from a
+finished pass with skipped days, and keeps a recap button. All response state stays
+in PostgreSQL; button IDs carry only goal IDs, dates, and navigation actions.
 
 ## Persistence and reminder delivery
 

@@ -1,4 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type Client } from 'discord.js';
+import { goalButton } from '../ui/goalTheme.js';
 import type { Goal, GoalCheckin } from '../db/schema.js';
 import { logError } from '../utils/logError.js';
 import { recapButton, reminderEmbed } from '../services/goalPresentation.js';
@@ -6,8 +7,8 @@ import { goalService } from '../services/goalService.js';
 
 export function reminderButtons(id: number, date: string, answered = false) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`goal:yes:${id}:${date}`).setLabel('✅ Oui').setStyle(ButtonStyle.Success).setDisabled(answered),
-    new ButtonBuilder().setCustomId(`goal:no:${id}:${date}`).setLabel('❌ Non').setStyle(ButtonStyle.Secondary).setDisabled(answered),
+    goalButton(`goal:yes:${id}:${date}`, 'Oui', ButtonStyle.Success, answered),
+    goalButton(`goal:no:${id}:${date}`, 'Non', ButtonStyle.Secondary, answered),
     recapButton(id),
   );
 }

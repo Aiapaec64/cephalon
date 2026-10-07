@@ -1,13 +1,12 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown } from 'discord.js';
 import type { Goal, GoalCheckin } from '../db/schema.js';
-import { parseDate, type CheckinStatus } from './goalLogic.js';
+import { dateRange, dayStatus, localClock, parseDate, progressSummary, type CheckinStatus } from './goalLogic.js';
+import { goalButton, goalColors, goalEmbed } from '../ui/goalTheme.js';
 
 export const DAY_VISUALS = {
-  yes: { icon: '✅', label: 'Fait' },
-  no: { icon: '❌', label: 'Non' },
-  missed: { icon: '⚪', label: 'Sans réponse' },
-  pending: { icon: '⏳', label: 'Aujourd’hui' },
-  future: { icon: '⬜', label: 'À venir' },
+  yes: { icon: '✓', label: 'Fait' }, no: { icon: '×', label: 'Non' },
+  missed: { icon: '—', label: 'Sans réponse' }, pending: { icon: '·', label: 'Aujourd’hui' },
+  future: { icon: '', label: 'À venir' },
 } as const;
 
 export function frenchDate(date: string, style: 'short' | 'full' | 'long' = 'full'): string {
@@ -19,62 +18,79 @@ export function goalDuration(goal: Pick<Goal, 'startDate' | 'endDate'>): number 
 }
 
 export function goalDayNumber(goal: Pick<Goal, 'startDate' | 'endDate'>, date: string): number {
-  const day = Math.round(parseDate(date).diff(parseDate(goal.startDate), 'days').days) + 1;
-  return Math.max(0, Math.min(goalDuration(goal), day));
+  return Math.max(0, Math.min(goalDuration(goal), Math.round(parseDate(date).diff(parseDate(goal.startDate), 'days').days) + 1));
 }
 
 export function goalDayLabel(goal: Goal, today: string): string {
-  const total = goalDuration(goal);
-  if (today > goal.endDate) return `Terminé · ${total} jours`;
-  const label = today < goal.startDate ? `Début le ${frenchDate(goal.startDate)}` : `Jour ${goalDayNumber(goal, today)} sur ${total}`;
+  if (today > goal.endDate) return `Terminé · ${goalDuration(goal)} jours`;
+  const label = today < goal.startDate ? `Début le ${frenchDate(goal.startDate)}` : `Jour ${goalDayNumber(goal, today)} sur ${goalDuration(goal)}`;
   return goal.active ? label : `Arrêté · ${label}`;
 }
 
-export function completionBar(completed: number, total: number): string {
-  const percent = total ? Math.max(0, Math.min(100, completed / total * 100)) : 0;
-  const filled = Math.round(percent / 10);
-  return `${'█'.repeat(filled)}${'░'.repeat(10 - filled)} ${Math.round(percent)} %`;
+export function goalProgress(goal: Goal, checkins: GoalCheckin[], today: string) {
+  const dates = dateRange(goal.startDate, goal.endDate);
+  const records = new Map(checkins.map((row) => [row.checkinDate, row.status]));
+  return { dates, ...progressSummary(dates.map((date) => dayStatus(date, today, records.get(date)))) };
 }
 
-export function recapButton(id: number, label = '📊 Récapitulatif'): ButtonBuilder {
-  return new ButtonBuilder().setCustomId(`goal:recap:${id}`).setLabel(label).setStyle(ButtonStyle.Primary);
+export function streakDays(goal: Goal, checkins: GoalCheckin[], today: string): number {
+  if (today < goal.startDate) return 0;
+  const records = new Map(checkins.map((row) => [row.checkinDate, row.status]));
+  let cursor = parseDate(today > goal.endDate ? goal.endDate : today);
+  // An unanswered current day does not break yesterday's streak before the day is over.
+  if (today <= goal.endDate && !['yes', 'no', 'missed'].includes(records.get(today) ?? 'pending')) cursor = cursor.minus({ days: 1 });
+  let count = 0;
+  while (cursor.toISODate()! >= goal.startDate && records.get(cursor.toISODate()!) === 'yes') {
+    count++;
+    cursor = cursor.minus({ days: 1 });
+  }
+  return count;
 }
 
-export function creationPayload(goal: Goal) {
-  const duration = goalDuration(goal);
-  const embed = new EmbedBuilder().setTitle('✅ Objectif créé').setColor(0x57f287)
-    .setDescription([
-      `🎯 **${escapeMarkdown(goal.title)}**`,
-      `👤 Cible : <@${goal.targetUserId}>`,
-      `✍️ Créateur : <@${goal.creatorUserId}>`,
-      `📅 ${frenchDate(goal.startDate)} → ${frenchDate(goal.endDate)}`,
-      `⏰ Rappel : ${goal.reminderTime}`,
-      `🌍 ${goal.timezone}`,
-      `📆 Durée : ${duration} ${duration === 1 ? 'jour' : 'jours'}`,
-      ...(goal.active ? [] : ['\nCet objectif est terminé ; aucun rappel ne sera envoyé.']),
-    ].join('\n'))
-    .setFooter({ text: `Objectif #${goal.id}` });
-  return { content: '', embeds: [embed],
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(recapButton(goal.id, '📊 Voir le récapitulatif'))],
-    allowedMentions: { parse: [] as [] },
-  };
+export function unansweredPastDates(goal: Goal, checkins: GoalCheckin[], now = new Date()): string[] {
+  const today = localClock(goal.timezone, now).date;
+  const answered = new Set(checkins.filter((row) => row.status === 'yes' || row.status === 'no').map((row) => row.checkinDate));
+  return dateRange(goal.startDate, goal.endDate).filter((date) => date < today && !answered.has(date));
 }
 
-const yesMessages = ['Continue comme ça 💪', 'Une journée de plus, bravo !', 'Excellent, garde le rythme !'];
-const noMessages = ['Ce n’est pas grave. Demain est une nouvelle occasion 💪', 'Une journée manquée ne détruit pas ta progression.', 'Le plus important est de continuer.'];
+export function recapButton(id: number, label = 'Récapitulatif', style = ButtonStyle.Secondary): ButtonBuilder {
+  return goalButton(`goal:recap:${id}`, label, style);
+}
 
-export function reminderEmbed(goal: Goal, date: string, status: CheckinStatus = 'pending', checkins: GoalCheckin[] = []): EmbedBuilder {
-  const total = goalDuration(goal);
-  const completed = checkins.filter((row) => row.status === 'yes' && row.checkinDate >= goal.startDate && row.checkinDate <= goal.endDate).length;
-  const pool = status === 'yes' ? yesMessages : noMessages;
-  const encouragement = pool[Math.floor(Math.random() * pool.length)]!;
-  const title = status === 'yes' ? '✅ Objectif validé' : status === 'no' ? '❌ Objectif non validé aujourd’hui'
-    : status === 'missed' ? '⚪ Journée sans réponse' : '🎯 Objectif du jour';
-  const body = status === 'yes'
-    ? `Bien joué <@${goal.targetUserId}> 💪\n${completed} ${completed === 1 ? 'jour complété' : 'jours complétés'} sur ${total}.\n${encouragement}`
-    : status === 'no' ? encouragement : status === 'missed' ? 'Cette journée est terminée. Continue à ton rythme.'
-      : 'As-tu réalisé ton objectif aujourd’hui ?';
-  return new EmbedBuilder().setTitle(title).setColor(status === 'yes' ? 0x57f287 : status === 'no' ? 0xfee75c : 0x5865f2)
-    .setDescription(`**${escapeMarkdown(goal.title)}**\n\nJour ${goalDayNumber(goal, date)} sur ${total}\n📅 ${frenchDate(date, 'long')}\n\n${body}`)
-    .setFooter({ text: `Objectif #${goal.id} · ${goal.timezone}` });
+export function historyButton(id: number): ButtonBuilder {
+  return goalButton(`goal:history:${id}`, 'Compléter l’historique');
+}
+
+export function creationPayload(goal: Goal, now = new Date()) {
+  const embed = goalEmbed('Objectif créé', escapeMarkdown(goal.title)).addFields(
+    { name: 'Cible', value: `<@${goal.targetUserId}>`, inline: true },
+    { name: 'Créateur', value: `<@${goal.creatorUserId}>`, inline: true },
+    { name: 'Période', value: `${frenchDate(goal.startDate)} → ${frenchDate(goal.endDate)}` },
+    { name: 'Rappel', value: `${goal.reminderTime} · ${goal.timezone}` },
+    { name: 'Progression', value: `0 / ${goalDuration(goal)} jours` },
+  ).setFooter({ text: `Objectif #${goal.id}` });
+  if (!goal.active) embed.addFields({ name: 'État', value: 'Terminé. Aucun rappel ne sera envoyé.' });
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(recapButton(goal.id, 'Voir le récapitulatif', ButtonStyle.Primary));
+  if (unansweredPastDates(goal, [], now).length) row.addComponents(historyButton(goal.id));
+  return { content: '', embeds: [embed], components: [row], allowedMentions: { parse: [] as [] } };
+}
+
+export function reminderEmbed(goal: Goal, date: string, status: CheckinStatus = 'pending', checkins: GoalCheckin[] = []) {
+  const title = status === 'yes' ? 'Objectif validé' : status === 'no' ? 'Objectif non validé'
+    : status === 'missed' ? 'Journée sans réponse' : 'Objectif du jour';
+  const embed = goalEmbed(title, escapeMarkdown(goal.title), status === 'yes' ? goalColors.success : status === 'no' ? goalColors.negative : goalColors.accent);
+  if (status === 'pending') embed.addFields(
+    { name: 'Aujourd’hui', value: `Jour ${goalDayNumber(goal, date)} sur ${goalDuration(goal)}`, inline: true },
+    { name: 'Date', value: frenchDate(date), inline: true },
+    { name: 'Question', value: 'As-tu réalisé ton objectif aujourd’hui ?' },
+  );
+  else {
+    const progress = goalProgress(goal, checkins, date);
+    embed.addFields({ name: 'Progression', value: `${progress.completed} / ${progress.dates.length} jours`, inline: true });
+    if (status === 'yes') embed.addFields({ name: 'Série actuelle', value: `${streakDays(goal, checkins, date)} jours`, inline: true });
+    embed.addFields({ name: 'Date', value: frenchDate(date) });
+    embed.addFields({ name: 'Bilan', value: status === 'yes' ? 'Bien joué. Continue comme ça.'
+      : status === 'no' ? 'Une journée manquée ne remet pas en cause ta progression.' : 'Cette journée est terminée.' });
+  }
+  return embed.setFooter({ text: `Objectif #${goal.id} · ${goal.timezone}` });
 }

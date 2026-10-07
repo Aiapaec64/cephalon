@@ -3,7 +3,8 @@ import { GoalInputError, parseDate, parseGoalId } from '../services/goalLogic.js
 export type GoalComponent =
   | { action: 'yes' | 'no'; id: number; date: string }
   | { action: 'recap'; id: number; page: number | 'today' }
-  | { action: 'list'; page: number };
+  | { action: 'list'; page: number }
+  | { action: 'history'; id: number; date?: string; choice?: 'yes' | 'no' | 'skip' };
 
 function pageNumber(value: string): number {
   if (!/^\d{1,5}$/.test(value)) throw new GoalInputError('Page invalide.');
@@ -24,5 +25,10 @@ export function parseGoalComponent(value: string): GoalComponent | null {
     return { action, id: parseGoalId(parts[2]!), page: page === 'today' ? 'today' : pageNumber(page) };
   }
   if (action === 'list' && parts.length === 3) return { action, page: pageNumber(parts[2]!) };
+  if (action === 'history' && parts.length === 3) return { action, id: parseGoalId(parts[2]!) };
+  if (action === 'history' && parts.length === 5 && ['yes', 'no', 'skip'].includes(parts[4]!)) {
+    parseDate(parts[3]!);
+    return { action, id: parseGoalId(parts[2]!), date: parts[3]!, choice: parts[4] as 'yes' | 'no' | 'skip' };
+  }
   throw new GoalInputError('Bouton d’objectif invalide.');
 }

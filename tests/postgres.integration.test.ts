@@ -86,7 +86,7 @@ test('PostgreSQL constraints, authorization, concurrency, and restart recovery',
       assert.equal(rows[0]!.deliveryState, 'sent');
       assert.ok(rows[0]!.discordMessageId);
       const recap = recapPayload(mainGoal, rows).embeds[0]!.toJSON();
-      assert.ok(recap.fields!.find((field) => field.name === 'Jours affichés')!.value.includes(`⚪ ${frenchDate(yesterday, 'short')} — Sans réponse`));
+      assert.ok(recap.fields!.find((field) => field.name === 'Historique')!.value.includes(`— ${frenchDate(yesterday, 'short')}   Sans réponse`));
     });
 
     await t.test('PostgreSQL enforces uniqueness, foreign keys, and response invariants', async () => {
@@ -122,6 +122,8 @@ test('PostgreSQL constraints, authorization, concurrency, and restart recovery',
       await assert.rejects(service().setDay({ ...base, date: tomorrow }), /passé/);
       await assert.rejects(service().setDay({ ...base, date: '2026-02-30' }), /date valide/);
       await service().setDay(base);
+      await assert.rejects(service().setDay({ ...base, status: 'no' }, true), /déjà une réponse/);
+      await assert.rejects(service().setDay({ ...base, date: today }, true), /journée passée/);
       await service().setDay({ ...base, status: 'no', actorId: '999', administrator: true });
       assert.equal((await service().checkins(mainGoal.id)).find((row) => row.checkinDate === yesterday)?.status, 'no');
       await assert.rejects(service().stop(mainGoal.id, '101', '404', false), /créateur/);
@@ -137,6 +139,21 @@ test('PostgreSQL constraints, authorization, concurrency, and restart recovery',
       messageAvailable = true;
       assert.equal((await checkin(goal)).status, row.status);
       assert.ok((await checkin(goal)).respondedAt);
+    });
+
+    await t.test('historical catch-up fills missed dates atomically without overwriting competing answers', async () => {
+      const goal = await makeGoal();
+      await connection.db.insert(goalCheckins).values({ goalId: goal.id, checkinDate: yesterday, status: 'missed', deliveryState: 'skipped' });
+      const input = { id: goal.id, guildId: '101', actorId: '303', administrator: false, date: yesterday };
+      const answers = await Promise.allSettled([
+        service().setDay({ ...input, status: 'yes' }, true), service().setDay({ ...input, status: 'no' }, true),
+      ]);
+      assert.equal(answers.filter((answer) => answer.status === 'fulfilled').length, 1);
+      assert.equal(answers.filter((answer) => answer.status === 'rejected').length, 1);
+      const row = (await service().checkins(goal.id))[0]!;
+      assert.ok(row.status === 'yes' || row.status === 'no');
+      assert.ok(row.respondedAt);
+      await service().stop(goal.id, '101', '303', false);
     });
 
     await t.test('backfilled current day suppresses reminder; future/expired/stopped goals do not send', async () => {

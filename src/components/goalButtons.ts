@@ -5,6 +5,7 @@ import { GoalInputError } from '../services/goalLogic.js';
 import { listPayload, recapPayload } from '../services/goalRecap.js';
 import { refreshReminder } from './goalMessages.js';
 import { logError } from '../utils/logError.js';
+import { handleHistoryButton } from './goalHistoryButtons.js';
 
 export async function handleGoalButton(interaction: ButtonInteraction): Promise<void> {
   const component = parseGoalComponent(interaction.customId);
@@ -13,14 +14,18 @@ export async function handleGoalButton(interaction: ButtonInteraction): Promise<
     throw new GoalInputError('Ce bouton n’est pas disponible ici.');
   }
   const service = goalService();
+  if (component.action === 'history') {
+    await handleHistoryButton(interaction, component, service);
+    return;
+  }
   if (component.action === 'list') {
     await interaction.deferUpdate();
     await interaction.editReply(listPayload(await service.list(interaction.guildId, interaction.user.id), component.page));
     return;
   }
   if (component.action === 'recap') {
-    // Page buttons only replace the ephemeral recap; reminder messages remain public and unchanged.
-    const isPage = interaction.customId.split(':').length === 4 && interaction.message.flags.has(MessageFlags.Ephemeral);
+    // Reuse ephemeral views; public reminder messages remain unchanged.
+    const isPage = interaction.message.flags.has(MessageFlags.Ephemeral);
     if (isPage) await interaction.deferUpdate();
     else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const goal = await service.get(component.id, interaction.guildId);

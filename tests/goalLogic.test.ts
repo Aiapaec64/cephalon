@@ -85,8 +85,8 @@ test('recap covers all dates across bounded pages; lists fit embed limits', () =
     const embed = payload.embeds[0]!.toJSON();
     assert.ok((embed.description?.length ?? 0) <= 4096);
     assert.ok(payload.embeds[0]!.length <= 6000);
-    const displayedDays = embed.fields!.find((field) => field.name === 'Jours affichés')!.value.split('\n');
-    assert.ok(displayedDays.length <= 7);
+    const displayedDays = embed.fields!.find((field) => field.name === 'Historique')!.value.split('\n');
+    assert.ok(displayedDays.length <= 6);
     dates.push(...displayedDays.map((row) => row.match(/\d{2}\/\d{2}/)![0]));
     for (const button of payload.components.flatMap((row) => row.components)) {
       const data = button.toJSON();
@@ -110,7 +110,7 @@ test('structured button IDs validate and preserve recap after answering', () => 
   const buttons = reminderButtons(12, '2026-10-06', true).toJSON().components;
   assert.equal(buttons[0]!.disabled, true);
   assert.equal(buttons[1]!.disabled, true);
-  assert.equal(buttons[2]!.disabled, undefined);
+  assert.equal(buttons[2]!.disabled, false);
   const message = reminderMessage({ ...goal, title: '@everyone **test**' }, '2026-10-06');
   assert.deepEqual(message.allowedMentions, { parse: [], users: ['4'] });
   assert.ok(message.nonce.length <= 25);

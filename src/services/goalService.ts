@@ -2,6 +2,7 @@ import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { database, type createDatabase } from '../db/index.js';
 import { goals, goalCheckins } from '../db/schema.js';
 import { GoalInputError, localClock, validateGoal, parseDate, type GoalInput } from './goalLogic.js';
+import { validateHistoryDate } from './goalHistory.js';
 
 type Database = ReturnType<typeof createDatabase>['db'];
 export class GoalService {
@@ -67,12 +68,13 @@ export class GoalService {
     });
   }
 
-  async setDay(input: { id: number; guildId: string; actorId: string; administrator: boolean; date: string; status: 'yes' | 'no' }) {
+  async setDay(input: { id: number; guildId: string; actorId: string; administrator: boolean; date: string; status: 'yes' | 'no' }, unansweredOnly = false) {
     parseDate(input.date);
     return this.db.transaction(async (tx) => {
       const [goal] = await tx.select().from(goals).where(and(eq(goals.id, input.id), eq(goals.guildId, input.guildId))).for('update');
       if (!goal) throw new GoalInputError('Objectif introuvable dans ce serveur.');
       if (goal.creatorUserId !== input.actorId && !input.administrator) throw new GoalInputError('Seul le créateur ou un administrateur peut corriger une journée.');
+      if (unansweredOnly) validateHistoryDate(goal, input.date);
       if (input.date < goal.startDate || input.date > goal.endDate || input.date > localClock(goal.timezone).date) {
         throw new GoalInputError('Choisis une journée de cet objectif, aujourd’hui ou dans le passé.');
       }
@@ -80,8 +82,9 @@ export class GoalService {
         goalId: input.id, checkinDate: input.date, status: input.status, respondedAt: new Date(), deliveryState: 'skipped',
       }).onConflictDoUpdate({ target: [goalCheckins.goalId, goalCheckins.checkinDate],
         set: { status: input.status, respondedAt: new Date() },
+        ...(unansweredOnly ? { setWhere: sql`${goalCheckins.status} IN ('pending', 'missed')` } : {}),
       }).returning();
-      if (!checkin) throw new Error('Check-in update returned no row.');
+      if (!checkin) throw new GoalInputError('Cette journée a déjà une réponse. Ouvre à nouveau le récapitulatif.');
       return { goal, checkin };
     });
   }
