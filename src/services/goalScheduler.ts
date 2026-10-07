@@ -146,7 +146,7 @@ export class GoalScheduler {
     if (channel.isThread() && (channel.archived || channel.locked)) throw new Error('Goal thread is closed.');
     const permissions = channel.permissionsFor(await channel.guild.members.fetchMe());
     const sendPermission = channel.isThread() ? PermissionFlagsBits.SendMessagesInThreads : PermissionFlagsBits.SendMessages;
-    if (!permissions?.has([PermissionFlagsBits.ViewChannel, sendPermission, PermissionFlagsBits.ReadMessageHistory])) throw new Error('Missing channel permissions.');
+    if (!permissions?.has([PermissionFlagsBits.ViewChannel, sendPermission, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory])) throw new Error('Missing channel permissions.');
     return channel;
   }
 

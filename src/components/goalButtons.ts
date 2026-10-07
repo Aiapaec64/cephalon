@@ -4,9 +4,7 @@ import { goalService } from '../services/goalService.js';
 import { GoalInputError } from '../services/goalLogic.js';
 import { listPayload, recapPayload } from '../services/goalRecap.js';
 import { refreshReminder } from './goalMessages.js';
-
-const yesMessages = ['Bien joué, continue comme ça 💪', 'Objectif validé pour aujourd’hui ✅', 'Bravo, encore une journée de faite 🔥', 'Excellent, garde le rythme !'];
-const noMessages = ['Pas grave, demain est une nouvelle occasion.', 'Une journée manquée ne détruit pas ta progression.', 'Reprends demain 💪', 'Le plus important est de continuer.'];
+import { logError } from '../utils/logError.js';
 
 export async function handleGoalButton(interaction: ButtonInteraction): Promise<void> {
   const component = parseGoalComponent(interaction.customId);
@@ -34,7 +32,11 @@ export async function handleGoalButton(interaction: ButtonInteraction): Promise<
   if (goal.channelId !== interaction.channelId) throw new GoalInputError('Ce rappel appartient à un autre canal.');
   const result = await service.answer({ id: component.id, date: component.date, guildId: interaction.guildId,
     userId: interaction.user.id, messageId: interaction.message.id, status: component.action });
-  await refreshReminder(interaction.client, result.goal, result.checkin);
-  const pool = component.action === 'yes' ? yesMessages : noMessages;
-  await interaction.editReply(pool[Math.floor(Math.random() * pool.length)]!);
+  const updated = await refreshReminder(interaction.client, result.goal, result.checkin);
+  if (updated) {
+    // The result is displayed on the original reminder; remove the temporary acknowledgement.
+    await interaction.deleteReply().catch((error: unknown) => logError('Goal answer: could not remove acknowledgement.', error));
+  } else {
+    await interaction.editReply('Réponse enregistrée. Le rappel n’a pas pu être actualisé ; le récapitulatif est à jour.');
+  }
 }

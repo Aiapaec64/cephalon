@@ -3,6 +3,7 @@ import { goalContext, goalIdOption } from './context.js';
 import { goalService } from '../../services/goalService.js';
 import { GoalInputError } from '../../services/goalLogic.js';
 import { refreshReminder } from '../../components/goalMessages.js';
+import { frenchDate } from '../../services/goalPresentation.js';
 
 export async function setGoalDay(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = goalContext(interaction);
@@ -12,5 +13,5 @@ export async function setGoalDay(interaction: ChatInputCommandInteraction): Prom
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await goalService().setDay({ id, ...context, date: interaction.options.getString('date', true), status });
   await refreshReminder(interaction.client, result.goal, result.checkin);
-  await interaction.editReply(`Objectif #${id} : ${result.checkin.checkinDate} → ${status === 'yes' ? '✅' : '❌'}.`);
+  await interaction.editReply(`Objectif #${id} : ${frenchDate(result.checkin.checkinDate)} → ${status === 'yes' ? '✅ Fait' : '❌ Non'}.`);
 }

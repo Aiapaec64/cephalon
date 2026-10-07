@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { canAttemptDelivery, dateRange, dayStatus, localClock, parseDate, parseGoalId, progressSummary, reminderDate, validateGoal } from '../src/services/goalLogic.js';
+import { canAttemptDelivery, dateRange, dayStatus, localClock, parseDate, parseGoalId, progressSummary, reminderDate, validateGoal, RECAP_PAGE_SIZE } from '../src/services/goalLogic.js';
 import { parseGoalComponent } from '../src/components/goalIds.js';
 import { reminderButtons, reminderMessage } from '../src/components/goalMessages.js';
 import { listPayload, recapPayload } from '../src/services/goalRecap.js';
 import type { Goal } from '../src/db/schema.js';
 import { commands } from '../src/commands/index.js';
+import { frenchDate } from '../src/services/goalPresentation.js';
 
 const input = { title: 'Abdos pendant un mois', startDate: '2026-10-05', durationMonths: 1, reminderTime: '18:00' };
 const goal: Goal = { ...validateGoal(input), id: 12, guildId: '1', channelId: '2', creatorUserId: '3', targetUserId: '4', active: true, createdAt: new Date(), updatedAt: new Date() };
@@ -73,24 +74,26 @@ test('recap separates historical unanswered, today, future, and explicit results
   assert.equal(stats.successRate.toFixed(1), '66.7');
   assert.equal(stats.remaining, 2);
   assert.equal(progressSummary(['future']).successRate, 0);
-  assert.equal(progressSummary(['yes', 'missed', 'pending']).successRate, 50);
+  assert.equal(progressSummary(['yes', 'missed', 'pending']).successRate, 100);
 });
 
 test('recap covers all dates across bounded pages; lists fit embed limits', () => {
   const longGoal = { ...goal, ...validateGoal({ ...input, durationMonths: null, durationDays: 3660 }) };
   const dates: string[] = [];
-  for (let page = 0; page < 122; page++) {
+  for (let page = 0; page < Math.ceil(3660 / RECAP_PAGE_SIZE); page++) {
     const payload = recapPayload(longGoal, [], page, new Date('2026-10-06T10:00Z'));
     const embed = payload.embeds[0]!.toJSON();
     assert.ok((embed.description?.length ?? 0) <= 4096);
     assert.ok(payload.embeds[0]!.length <= 6000);
-    dates.push(...embed.description!.split('\n').map((row) => row.slice(-10)));
+    const displayedDays = embed.fields!.find((field) => field.name === 'Jours affichés')!.value.split('\n');
+    assert.ok(displayedDays.length <= 7);
+    dates.push(...displayedDays.map((row) => row.match(/\d{2}\/\d{2}/)![0]));
     for (const button of payload.components.flatMap((row) => row.components)) {
       const data = button.toJSON();
       assert.ok('custom_id' in data && data.custom_id.length <= 100);
     }
   }
-  assert.deepEqual(dates, dateRange(longGoal.startDate, longGoal.endDate));
+  assert.deepEqual(dates, dateRange(longGoal.startDate, longGoal.endDate).map((date) => frenchDate(date, 'short')));
   const list = listPayload(Array.from({ length: 25 }, (_, i) => ({ ...goal, id: i + 1, title: 'x'.repeat(200) })));
   assert.equal(list.embeds[0]!.data.fields?.length, 10);
   assert.ok(list.embeds[0]!.length <= 6000);
@@ -99,7 +102,8 @@ test('recap covers all dates across bounded pages; lists fit embed limits', () =
 test('structured button IDs validate and preserve recap after answering', () => {
   assert.deepEqual(parseGoalComponent('goal:yes:12:2026-10-06'), { action: 'yes', id: 12, date: '2026-10-06' });
   assert.deepEqual(parseGoalComponent('goal:recap:12:2'), { action: 'recap', id: 12, page: 2 });
-  assert.deepEqual(parseGoalComponent('goal:recap:12'), { action: 'recap', id: 12, page: 0 });
+  assert.deepEqual(parseGoalComponent('goal:recap:12'), { action: 'recap', id: 12, page: 'today' });
+  assert.deepEqual(parseGoalComponent('goal:recap:12:today'), { action: 'recap', id: 12, page: 'today' });
   assert.equal(parseGoalComponent('other:action'), null);
   for (const id of ['goal:yes:0:2026-10-06', 'goal:no:12:2026-02-30', 'goal:recap:12:-1', 'goal:unknown:12', 'goal:yes:12:2026-10-06:extra']) assert.throws(() => parseGoalComponent(id));
   for (const id of ['-1', '12abc', '2147483648', '01']) assert.throws(() => parseGoalId(id));

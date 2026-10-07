@@ -12,6 +12,7 @@ import { GoalService } from '../src/services/goalService.js';
 import { GoalScheduler } from '../src/services/goalScheduler.js';
 import { isoDate, localClock } from '../src/services/goalLogic.js';
 import { recapPayload } from '../src/services/goalRecap.js';
+import { frenchDate } from '../src/services/goalPresentation.js';
 
 // Opt-in, isolated PostgreSQL only. Never reads .env or DATABASE_URL.
 const testUrl = process.env.TEST_DATABASE_URL;
@@ -85,7 +86,7 @@ test('PostgreSQL constraints, authorization, concurrency, and restart recovery',
       assert.equal(rows[0]!.deliveryState, 'sent');
       assert.ok(rows[0]!.discordMessageId);
       const recap = recapPayload(mainGoal, rows).embeds[0]!.toJSON();
-      assert.ok(recap.description!.includes(`⚪ ${yesterday}`));
+      assert.ok(recap.fields!.find((field) => field.name === 'Jours affichés')!.value.includes(`⚪ ${frenchDate(yesterday, 'short')} — Sans réponse`));
     });
 
     await t.test('PostgreSQL enforces uniqueness, foreign keys, and response invariants', async () => {
@@ -132,7 +133,7 @@ test('PostgreSQL constraints, authorization, concurrency, and restart recovery',
       const goal = await service().get(mainGoal.id, '101');
       const row = await checkin(goal);
       messageAvailable = false;
-      await assert.doesNotReject(refreshReminder(client, goal, row));
+      await assert.doesNotReject(refreshReminder(client, goal, row, await service().checkins(goal.id)));
       messageAvailable = true;
       assert.equal((await checkin(goal)).status, row.status);
       assert.ok((await checkin(goal)).respondedAt);

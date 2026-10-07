@@ -1,7 +1,7 @@
 import { DateTime, IANAZone } from 'luxon';
 
 export const DEFAULT_TIMEZONE = 'Europe/Brussels';
-export const RECAP_PAGE_SIZE = 30;
+export const RECAP_PAGE_SIZE = 7;
 
 export class GoalInputError extends Error {}
 
@@ -103,7 +103,7 @@ export function progressSummary(statuses: ReturnType<typeof dayStatus>[]) {
   const unanswered = statuses.filter((status) => status === 'missed').length;
   const missed = declined + unanswered;
   const remaining = statuses.length - completed - missed;
-  const denominator = completed + missed;
+  const denominator = completed + declined;
   return { completed, declined, unanswered, missed, remaining, successRate: denominator ? completed / denominator * 100 : 0 };
 }
 

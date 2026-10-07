@@ -2,7 +2,7 @@ import { DiscordAPIError, MessageFlags, PermissionFlagsBits, type ChatInputComma
 import { goalContext } from './context.js';
 import { GoalInputError, validateGoal } from '../../services/goalLogic.js';
 import { goalService } from '../../services/goalService.js';
-import { recapPayload } from '../../services/goalRecap.js';
+import { creationPayload } from '../../services/goalPresentation.js';
 
 export async function createGoal(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = goalContext(interaction);
@@ -27,12 +27,12 @@ export async function createGoal(interaction: ChatInputCommandInteraction): Prom
   }
   const permissions = channel.permissionsFor(await guild.members.fetchMe());
   const sendPermission = channel.isThread() ? PermissionFlagsBits.SendMessagesInThreads : PermissionFlagsBits.SendMessages;
-  if (!permissions?.has([PermissionFlagsBits.ViewChannel, sendPermission, PermissionFlagsBits.ReadMessageHistory])) {
-    throw new GoalInputError('Cephalon a besoin de Voir le salon, Envoyer des messages et Voir les anciens messages ici.');
+  if (!permissions?.has([PermissionFlagsBits.ViewChannel, sendPermission, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory])) {
+    throw new GoalInputError('Cephalon a besoin de Voir le salon, Envoyer des messages, Intégrer des liens et Voir les anciens messages ici.');
   }
   const service = goalService();
   const goal = await service.create({ ...input,
     guildId: context.guildId, channelId: interaction.channelId, creatorUserId: context.actorId, targetUserId: target.id,
   });
-  await interaction.editReply({ content: `Objectif #${goal.id} créé.${goal.active ? '' : ' Cet objectif est déjà terminé ; aucun rappel ne sera envoyé.'}`, ...recapPayload(goal, []) });
+  await interaction.editReply(creationPayload(goal));
 }

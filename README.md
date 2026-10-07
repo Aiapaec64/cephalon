@@ -123,10 +123,21 @@ even for stopped/finished goals; it does not allow future dates. Backfilling tod
 before its reminder is sent suppresses that day's reminder.
 
 `list` shows your active goals as creator or target. `show` and recap display
-every goal date with paginated embeds: ✅ yes, ❌ no, ⚪ past unanswered,
-⏳ today pending, ⬜ future. Success rate is completed / (completed + no + past
-unanswered); today pending and future dates are excluded. A zero denominator
-shows 0.0%. Remaining counts today pending and future dates.
+every goal date with seven days per page, opening on today's page (or the nearest
+boundary page before/after the goal). French Previous/Next and Today buttons
+navigate without changing the public reminder. Dates use French formatting:
+✅ Fait, ❌ Non, ⚪ Sans réponse, ⏳ Aujourd’hui, ⬜ À venir.
+Success rate is completed / (completed + no): only explicit answers count.
+Unanswered, pending, and future dates are excluded. A zero denominator shows 0%.
+Remaining counts today pending and future dates. The short progress bar shows
+completed / total goal days, separately from success rate.
+
+Creation returns a compact ephemeral confirmation with a recap button. Daily
+reminders ping the target outside an embed showing the title, day number, and
+French date. Answering edits that same reminder with an encouraging result and
+updated completion count, disables Yes/No, and keeps recap available. No extra
+success acknowledgement remains after the reminder is updated; if editing fails,
+an ephemeral confirmation explains that the answer was saved.
 
 ## Persistence and reminder delivery
 

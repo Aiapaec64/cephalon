@@ -27,7 +27,10 @@ export const interactionCreate = {
       if (age >= 15 * 60 * 1000) return;
       if (!interaction.deferred && !interaction.replied && age >= 3000) return;
       try {
-        const content = error instanceof GoalInputError ? error.message : 'An error occurred while executing this command.';
+        const isGoal = interaction.isButton() || interaction.commandName === 'goal';
+        const content = error instanceof GoalInputError ? error.message : isGoal
+          ? 'Une erreur est survenue pendant cette action. Réessaie dans un instant.'
+          : 'An error occurred while executing this command.';
         if (interaction.deferred && !interaction.replied) {
           await interaction.editReply({ content });
         } else if (interaction.replied) {
